@@ -1,4 +1,3 @@
-import threading
 import time
 from .order_queue import order_queue
 from .models import Order
@@ -7,7 +6,7 @@ from asgiref.sync import async_to_sync
 
 class ConsumeOrders:
     def __init__(self):
-        self.thread_sleep_time = 20
+        self.thread_sleep_time = 5
         self.running = False
 
     def consume_orders(self):
@@ -23,32 +22,22 @@ class ConsumeOrders:
                     print(f"Processing order {order_id}...")
                     
                     try:
-                        order = Order.objects.get(id=order_id)  # Fixed: use id not order_id
-                        order.status = "Processing"
-                        order.save()
+                        order = Order.objects.get(id=order_id)
                         
-                        # Send status update to frontend
-                        if channel_layer:
-                            async_to_sync(channel_layer.group_send)(
-                                f"user_{order.username}",
-                                {
-                                    "type": "order_status",
-                                    "message": {
-                                        "order_id": order.id,
-                                        "status": "Processing",
-                                        "item_name": order.item_name
-                                    }
-                                }
-                            )
+                        # Verify order is in Processing state (should be set by admin acceptance)
+                        if order.status != "Processing":
+                            print(f"Order {order_id} is not in Processing state. Current status: {order.status}")
+                            continue
                         
                         # Simulate processing time
+                        print(f"Processing order {order_id} for {self.thread_sleep_time} seconds...")
                         time.sleep(self.thread_sleep_time)
                         
                         # Mark as processed
                         order.status = "Processed"
                         order.save()
                         
-                        # Send completion update to frontend
+                        # Send completion update to user
                         if channel_layer:
                             async_to_sync(channel_layer.group_send)(
                                 f"user_{order.username}",
@@ -58,6 +47,19 @@ class ConsumeOrders:
                                         "order_id": order.id,
                                         "status": "Processed",
                                         "item_name": order.item_name
+                                    }
+                                }
+                            )
+                            
+                            # Notify admin portal
+                            async_to_sync(channel_layer.group_send)(
+                                "admin_orders",
+                                {
+                                    "type": "order_update",
+                                    "message": {
+                                        "order_id": order.id,
+                                        "action": "completed",
+                                        "status": "Processed"
                                     }
                                 }
                             )

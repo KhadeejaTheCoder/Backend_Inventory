@@ -2,16 +2,15 @@ import os
 from django.core.asgi import get_asgi_application
 from channels.routing import ProtocolTypeRouter, URLRouter
 from channels.auth import AuthMiddlewareStack
-from django.urls import path
-from inventory.websocket_consumer import OrderStatusConsumer
+from routing import websocket_urlpatterns
 
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'your_project_name.settings')
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'Inventory_Proj.settings')
 
 application = ProtocolTypeRouter({
     "http": get_asgi_application(),
     "websocket": AuthMiddlewareStack(
-        URLRouter([
-            path('ws/orders/<str:username>/', OrderStatusConsumer.as_asgi()),
-        ])
+        URLRouter(
+            websocket_urlpatterns
+        )
     ),
 })
